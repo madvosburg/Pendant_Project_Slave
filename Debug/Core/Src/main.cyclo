@@ -1,8 +1,8 @@
 ../Core/Src/main.c:72:6:sendData	1
 ../Core/Src/main.c:77:6:HAL_UARTEx_RxEventCallback	1
-../Core/Src/main.c:87:5:main	5
-../Core/Src/main.c:168:6:SystemClock_Config	4
-../Core/Src/main.c:213:13:MX_USART1_UART_Init	2
-../Core/Src/main.c:248:13:MX_USART2_UART_Init	2
-../Core/Src/main.c:283:13:MX_GPIO_Init	1
-../Core/Src/main.c:326:6:Error_Handler	1
+../Core/Src/main.c:87:5:main	6
+../Core/Src/main.c:153:6:SystemClock_Config	4
+../Core/Src/main.c:198:13:MX_USART1_UART_Init	2
+../Core/Src/main.c:233:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:268:13:MX_GPIO_Init	1
+../Core/Src/main.c:311:6:Error_Handler	1
