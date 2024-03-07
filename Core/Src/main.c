@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stdio.h"
+#include "string.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -60,6 +62,12 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 uint8_t TxData[2];
 uint8_t RxData[2];
+uint8_t buf[20];
+uint8_t led_a[20] = "Toggle red LED\n\r";
+uint8_t led_b[20] = "Toggle blue LED\n\r";
+uint8_t led_c[20] = "Toggle yellow LED\n\r";
+uint8_t led_d[20] = "Toggle green LED\n\r";
+int i = 0;
 
 void sendData (uint8_t *data)
 {
@@ -118,26 +126,35 @@ int main(void)
 	 		 HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);		//toggle relay to toggle red LED
 	 	 //  TxData[0] = 5;
 	 	 //  sendData(TxData);
-	 		 HAL_Delay(500);
+	 	//	 HAL_Delay(500);
 	 		 RxData[0] = 0;
+	  		 HAL_UART_Transmit(&huart2, led_a, 20, 10);
 	   }else if(RxData[0] == 2){	//Check for green button press
 	 	     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);	//toggle relay to toggle green LED
 	     //  TxData[0] = 6;
 	 	 //  sendData(TxData);
-	 	     HAL_Delay(500);
+	 	  //   HAL_Delay(500);
 	         RxData[0] = 0;
+	  		 HAL_UART_Transmit(&huart2, led_d, 20, 10);
 	   }else if(RxData[0] == 3){	//Check for yellow button press
 	 		 HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);	//toggle relay to toggle yellow LED
 	 	  // TxData[0] = 7;
 	 	 //  sendData(TxData);
-	 	     HAL_Delay(500);
+	 	   //  HAL_Delay(500);
 	 	     RxData[0] = 0;
+	  		 HAL_UART_Transmit(&huart2, led_c, 20, 10);
 	   }else if(RxData[0] == 4){	//Check for blue button press
 	 		 HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);	//toggle relay to toggle blue LED
 	 	 //  TxData[0] = 8;
 	     //  sendData(TxData);
-	 		 HAL_Delay(500);
+	 		// HAL_Delay(500);
 	 		 RxData[0] = 0;
+	 		 HAL_UART_Transmit(&huart2, led_b, 20, 10);
+	   }else{
+		 //    i = RxData[0];
+		 //    sprintf(buf, "Receiving %d \n\r", i);
+		  //   HAL_UART_Transmit(&huart2, buf, 20, 10);
+		 //    HAL_Delay(500);
 	   }
     /* USER CODE BEGIN 3 */
   }
