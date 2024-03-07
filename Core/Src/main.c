@@ -60,23 +60,22 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t TxData[2];
-uint8_t RxData[2];
-uint8_t buf[20];
+volatile uint8_t TxData[2];
+volatile uint8_t RxData[2];
+uint8_t buf[20] = "Waiting\n\r";
 uint8_t led_a[20] = "Toggle red LED\n\r";
 uint8_t led_b[20] = "Toggle blue LED\n\r";
 uint8_t led_c[20] = "Toggle yellow LED\n\r";
 uint8_t led_d[20] = "Toggle green LED\n\r";
-int i = 0;
 
-void sendData (uint8_t *data)
+void sendData (volatile uint8_t *data)
 {
-	HAL_UART_Transmit(&huart1, data, 2, 1000);
+	HAL_UART_Transmit(&huart1, (uint8_t*)data, 2, 1000);
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-	HAL_UARTEx_ReceiveToIdle_IT(&huart1, RxData, 2);
+	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, 2);
 }
 /* USER CODE END 0 */
 
@@ -112,7 +111,7 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_UARTEx_ReceiveToIdle_IT(&huart1, RxData, 2);
+  HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, 2);
 
 
   /* USER CODE END 2 */
@@ -124,37 +123,22 @@ int main(void)
     /* USER CODE END WHILE */
 	  if(RxData[0] == 1){	//Check for red button press
 	 		 HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);		//toggle relay to toggle red LED
-	 	 //  TxData[0] = 5;
-	 	 //  sendData(TxData);
-	 	//	 HAL_Delay(500);
-	 		 RxData[0] = 0;
+	 		 RxData[0] = 5;
 	  		 HAL_UART_Transmit(&huart2, led_a, 20, 10);
 	   }else if(RxData[0] == 2){	//Check for green button press
 	 	     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);	//toggle relay to toggle green LED
-	     //  TxData[0] = 6;
-	 	 //  sendData(TxData);
-	 	  //   HAL_Delay(500);
-	         RxData[0] = 0;
+	         RxData[0] = 5;
 	  		 HAL_UART_Transmit(&huart2, led_d, 20, 10);
 	   }else if(RxData[0] == 3){	//Check for yellow button press
 	 		 HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);	//toggle relay to toggle yellow LED
-	 	  // TxData[0] = 7;
-	 	 //  sendData(TxData);
-	 	   //  HAL_Delay(500);
-	 	     RxData[0] = 0;
+	 	     RxData[0] = 5;
 	  		 HAL_UART_Transmit(&huart2, led_c, 20, 10);
 	   }else if(RxData[0] == 4){	//Check for blue button press
 	 		 HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);	//toggle relay to toggle blue LED
-	 	 //  TxData[0] = 8;
-	     //  sendData(TxData);
-	 		// HAL_Delay(500);
-	 		 RxData[0] = 0;
+	 		 RxData[0] = 5;
 	 		 HAL_UART_Transmit(&huart2, led_b, 20, 10);
-	   }else{
-		 //    i = RxData[0];
-		 //    sprintf(buf, "Receiving %d \n\r", i);
-		  //   HAL_UART_Transmit(&huart2, buf, 20, 10);
-		 //    HAL_Delay(500);
+	   }else if(RxData[0] == 0){
+		     HAL_UART_Transmit(&huart2, buf, 20, 10);
 	   }
     /* USER CODE BEGIN 3 */
   }
