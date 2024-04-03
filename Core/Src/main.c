@@ -43,8 +43,6 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-CRC_HandleTypeDef hcrc;
-
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
@@ -57,35 +55,33 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint32_t RxData[3];
+uint64_t RxData[3];
 
 uint8_t buf[20] = "Waiting\n\r";
 uint8_t led_a[20] = "Toggle red LED\n\r";
 uint8_t led_b[20] = "Toggle blue LED\n\r";
 uint8_t led_c[20] = "Toggle yellow LED\n\r";
 uint8_t led_d[20] = "Toggle green LED\n\r";
-
-uint32_t crc = 0;
 uint8_t err[20] = "ERROR\n\r\n\r";
 uint8_t err_max[40] = "ERROR detected over 10 times\n\r\n\r";
+
+uint64_t bit_data = 0;
+uint64_t bit_key = 0xD;
+uint64_t bit_appended;
+int shift = 60;
+int pos = 0;
+uint64_t bit_four = 0;
+uint64_t bit_ans = 0;
 
 bool flag = false;
 uint8_t errors = 0;
 //uint8_t timeout = 0;
-
-char key[] = "1101";
-char data_str[40];
-char remain[5];
-char appended_data[40];
-char result[5];
-char tmp[10];
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
@@ -96,90 +92,41 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 /**
  * XOR logic used to divide data by key
  */
-void xor(char* str1, char* str2){
-	for(int i = 0; i < 5; i++){
-		if(str1[i] == str2[i]){
-			result[i] = '0';			//if bits are same, XOR is 0
-		}else{
-			result[i] = '1';			//if bits are different, XOR is 1
-		}
+void xor(){
+	if(bit_ans & 0b1000){			//if leftmost bit is 1, perform xor with key
+		bit_ans = bit_ans ^ bit_key;
+	}else{						//if leftmost bit is 0, perform xor with all zeros
+		bit_ans = bit_ans ^ 0b0000;
 	}
-	result[4] = '\0';
 }
 
 /**
  * divides data by key to get remainder
  *
  * takes 4 bits at a time and XORs them until 4 bit remainder is left
- * on the receiving side, remain should be zero if data was sent correctly
  */
-void division(){
-	int dividend_len = strlen(appended_data);
-	int xor_bits = 4;
-
-	strncpy(tmp, appended_data, xor_bits);
-
-	while(xor_bits < dividend_len){
-		if(tmp[0] == '1'){		//if leftmost bit is 1, perform xor with key
-			xor(key, tmp);
-			strncpy(tmp, result+1, 4);
-			strcat(tmp, &appended_data[xor_bits]);
-		}else{					//if leftmost bit is 0, perform xor with string of zeros
-			xor("0000", tmp);
-			strncpy(tmp, result+1, 4);
-			strcat(tmp, &appended_data[xor_bits]);
-		}
-		xor_bits++;
+void bitmask_division(){
+	while(shift > 0){
+		shift--;
+		bit_four = bit_appended & (0x0800000000000000 >> pos);
+		bit_four = bit_four >> shift;
+		bit_ans = bit_ans << 1;
+		bit_ans = bit_ans + bit_four;
+		xor();
+		pos++;
 	}
-
-	if(tmp[0] == '1'){
-		xor(key, tmp);
-		strcpy(tmp, result);
-	}else{
-		xor("0000", tmp);
-		strcpy(tmp, result);
-	}
-	strcpy(remain, tmp);
+	shift = 60;
+	pos = 0;
 }
 
 /**
- * reverses string
+ * decodes crc value and if the remainder is not zero, track an error in the data sent
  */
-char* str_rev(char* str){
-	int len = strlen(str);
-	for(int i = 0, j = len - 1; i <= j; i++, j--){
-		char c = str[i];
-		str[i] = str[j];
-		str[j] = c;
-	}
-	return str;
-}
-
-/**
- * converts uint32 to string
- */
-void toStr(){
-	uint32_t temp = RxData[1];
-	for(int i = 0; i < 35; i++){
-		if(temp & 1){
-			data_str[i] = '1';
-		}else{
-			data_str[i] = '0';
-		}
-		temp = temp >> 1;
-	}
-}
-
-/**
- * decodes crc values and if the remainder is not zero, track an error in the data sent
- */
-void decode_crc(){
+void bitmask_decode(){
 	flag = false;
-	toStr();
-	strcpy(appended_data, str_rev(data_str));
-	division();
-	if(strchr(remain, '1') != NULL){
-			errors++;
+	bitmask_division();
+	if(bit_ans != 0){
+		errors++;
 	}
 }
 
@@ -215,7 +162,6 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_USART1_UART_Init();
-  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
  // HAL_TIM_Base_Start_IT(&htim16);
@@ -233,7 +179,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  if(flag){
 
-		  decode_crc();
+		  bitmask_decode();
 
 	   	  if(RxData[0] == 1){								//red
 	   		  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
@@ -304,40 +250,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief CRC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_CRC_Init(void)
-{
-
-  /* USER CODE BEGIN CRC_Init 0 */
-
-  /* USER CODE END CRC_Init 0 */
-
-  /* USER CODE BEGIN CRC_Init 1 */
-
-  /* USER CODE END CRC_Init 1 */
-  hcrc.Instance = CRC;
-  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_DISABLE;
-  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_DISABLE;
-  hcrc.Init.GeneratingPolynomial = 79764919;
-  hcrc.Init.CRCLength = CRC_POLYLENGTH_32B;
-  hcrc.Init.InitValue = 0;
-  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
-  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
-  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_WORDS;
-  if (HAL_CRC_Init(&hcrc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN CRC_Init 2 */
-
-  /* USER CODE END CRC_Init 2 */
-
 }
 
 /**
