@@ -46,6 +46,8 @@
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
+WWDG_HandleTypeDef hwwdg;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -55,6 +57,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_WWDG_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -71,17 +74,9 @@ uint8_t led_d[20] = "Toggle green LED\n\r";
 uint8_t err[20] = "ERROR\n\r\n\r";
 uint8_t err_max[40] = "ERROR detected over 10 times\n\r\n\r";
 
-uint64_t bit_data = 0;
-uint64_t bit_key = 0xD;
-uint64_t bit_appended;
-int shift = 60;
-int pos = 0;
-uint64_t bit_four = 0;
-uint64_t bit_ans = 0;
-
+uint64_t crc_key = 0xD;
 bool flag = false;
 uint8_t errors = 0;
-//uint8_t timeout = 0;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
@@ -92,12 +87,14 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 /**
  * XOR logic used to divide data by key
  */
-void xor(){
-	if(bit_ans & 0b1000){			//if leftmost bit is 1, perform xor with key
-		bit_ans = bit_ans ^ bit_key;
-	}else{						//if leftmost bit is 0, perform xor with all zeros
-		bit_ans = bit_ans ^ 0b0000;
+uint64_t crc_xor(uint64_t div_data){
+	uint64_t ans = div_data;
+	if(ans & 0b1000){
+		ans = ans ^ crc_key;			//if leftmost bit is 1, perform xor with key
+	}else{
+		ans = ans ^ 0b0000;				//if leftmost bit is 0, perform xor with all zeros
 	}
+	return ans;
 }
 
 /**
@@ -105,27 +102,38 @@ void xor(){
  *
  * takes 4 bits at a time and XORs them until 4 bit remainder is left
  */
-void bitmask_division(){
-	while(shift > 0){
-		shift--;
-		bit_four = bit_appended & (0x0800000000000000 >> pos);
-		bit_four = bit_four >> shift;
-		bit_ans = bit_ans << 1;
-		bit_ans = bit_ans + bit_four;
-		xor();
-		pos++;
+uint64_t crc_division(uint64_t data, int curs_pos, int shift_pos, uint64_t answer){
+	int cursor = curs_pos;
+	int bit_shift = shift_pos;
+	uint64_t remain = answer;
+	uint64_t dividend = 0;
+
+	while(bit_shift > 0){
+		bit_shift--;
+		dividend = data & (0x0800000000000000 >> cursor);
+		dividend = dividend >> bit_shift;
+		remain = remain << 1;
+		remain += dividend;
+		remain = crc_xor(remain);
+		cursor++;
 	}
-	shift = 60;
-	pos = 0;
+	return remain;
 }
 
 /**
  * decodes crc value and if the remainder is not zero, track an error in the data sent
  */
-void bitmask_decode(){
+void crc_decode(){
 	flag = false;
-	bitmask_division();
-	if(bit_ans != 0){
+	int shift = 60;
+	int position = 0;
+	uint64_t appended_data = RxData[1];
+	uint64_t dividend = appended_data & 0xF000000000000000;
+	dividend = dividend >> shift;
+	uint64_t ans = crc_xor(dividend);
+
+	uint64_t remain = crc_division(appended_data, position, shift, ans);
+	if(remain != 0){
 		errors++;
 	}
 }
@@ -162,9 +170,8 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_USART1_UART_Init();
+  MX_WWDG_Init();
   /* USER CODE BEGIN 2 */
-
- // HAL_TIM_Base_Start_IT(&htim16);
 
   HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
 
@@ -178,8 +185,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if(flag){
-
-		  bitmask_decode();
+		  HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
+		  crc_decode();
 
 	   	  if(RxData[0] == 1){								//red
 	   		  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
@@ -319,6 +326,37 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * @brief WWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_WWDG_Init(void)
+{
+
+  /* USER CODE BEGIN WWDG_Init 0 */
+	//watch dog counter for window of 5 to 15 ms
+  /* USER CODE END WWDG_Init 0 */
+
+  /* USER CODE BEGIN WWDG_Init 1 */
+	//counter = ((max_time * clk) / (4096 * prescalar)) + 64			= ((.015 * 8M) / (4096 * 4)) + 64 = 72
+	//window = counter - ((min_time * clk) / (4096 * prescalar))		= 72 - ((0.005 * 8M) / (4096 * prescalar)) = 70
+  /* USER CODE END WWDG_Init 1 */
+  hwwdg.Instance = WWDG;
+  hwwdg.Init.Prescaler = WWDG_PRESCALER_4;
+  hwwdg.Init.Window = 70;
+  hwwdg.Init.Counter = 72;
+  hwwdg.Init.EWIMode = WWDG_EWI_DISABLE;
+  if (HAL_WWDG_Init(&hwwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN WWDG_Init 2 */
+
+  /* USER CODE END WWDG_Init 2 */
 
 }
 
