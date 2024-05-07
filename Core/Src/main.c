@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -43,6 +43,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim16;
+TIM_HandleTypeDef htim17;
+
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
@@ -58,6 +61,8 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_WWDG_Init(void);
+static void MX_TIM16_Init(void);
+static void MX_TIM17_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -75,13 +80,16 @@ uint8_t err[20] = "ERROR\n\r\n\r";
 uint8_t err_max[40] = "ERROR detected over 10 times\n\r\n\r";
 
 uint64_t crc_key = 0xD;
-bool flag = false;
+bool rx_flag = false;
 uint8_t errors = 0;
+bool timer_flag = false;
+bool wwdg_flag = false;
+bool error_flag = false;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
-	flag = true;
+	rx_flag = true;
 }
 
 /**
@@ -124,7 +132,7 @@ uint64_t crc_division(uint64_t data, int curs_pos, int shift_pos, uint64_t answe
  * decodes crc value and if the remainder is not zero, track an error in the data sent
  */
 void crc_decode(){
-	flag = false;
+	rx_flag = false;
 	int shift = 60;
 	int position = 0;
 	uint64_t appended_data = RxData[1];
@@ -135,6 +143,10 @@ void crc_decode(){
 	uint64_t remain = crc_division(appended_data, position, shift, ans);
 	if(remain != 0){
 		errors++;
+		if(!error_flag){
+			HAL_TIM_Base_Start_IT(&htim16);
+			error_flag = true;
+		}
 	}
 }
 
@@ -170,48 +182,65 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_USART1_UART_Init();
-  MX_WWDG_Init();
+  MX_TIM16_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
+	HAL_TIM_Base_Start_IT(&htim17);
 
-  HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
-
+	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1)
+	{
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if(flag){
-		  HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
-		  crc_decode();
+		if(wwdg_flag){
+			MX_WWDG_Init();
+			wwdg_flag = false;
+		}
+		if(rx_flag){
+			if(timer_flag){
+				HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
+			}
 
-	   	  if(RxData[0] == 1){								//red
-	   		  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
-	   		  RxData[0] = 0;
-	   		  HAL_UART_Transmit(&huart2, led_a, 20, 10);
-	   	  }else if(RxData[0] == 2){							//green
-	   		  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);
-	   		  RxData[0] = 0;
-	   		  HAL_UART_Transmit(&huart2, led_d, 20, 10);
-	   	  }else if(RxData[0] == 3){							//yellow
-	   		  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-	   		  RxData[0] = 0;
-	   		  HAL_UART_Transmit(&huart2, led_c, 20, 10);
-	   	  }else if(RxData[0] == 4){							//blue
-	   		  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);
-	   		  RxData[0] = 0;
-	   		  HAL_UART_Transmit(&huart2, led_b, 20, 10);
-	   	  }else if(RxData[0] == 0){
-	   		  HAL_UART_Transmit(&huart2, buf, 20, 10);
-	   	  }
-	  }
-	  if(errors > 10){
-		  HAL_UART_Transmit(&huart2, err_max, 40, 10);
-	  }
-  }
+			crc_decode();
+			rx_flag = false;
+
+			if(RxData[0] == 1){								//red
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
+				//	   		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+				RxData[0] = 0;
+				HAL_UART_Transmit(&huart2, led_a, 20, 10);
+			}else if(RxData[0] == 2){							//green
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);
+				//	   		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+				RxData[0] = 0;
+				HAL_UART_Transmit(&huart2, led_d, 20, 10);
+			}else if(RxData[0] == 3){							//yellow
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+				RxData[0] = 0;
+				HAL_UART_Transmit(&huart2, led_c, 20, 10);
+			}else if(RxData[0] == 4){							//blue
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);
+				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+				RxData[0] = 0;
+				HAL_UART_Transmit(&huart2, led_b, 20, 10);
+			}else if(RxData[0] == 0){
+				//	   		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+				//	   		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+				HAL_UART_Transmit(&huart2, buf, 20, 10);
+			}
+		}
+		if(errors > 10){
+			HAL_UART_Transmit(&huart2, err_max, 40, 10);
+		}
+	}
   /* USER CODE END 3 */
 }
 
@@ -250,13 +279,82 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
+                              |RCC_PERIPHCLK_TIM16|RCC_PERIPHCLK_TIM17;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  PeriphClkInit.Tim16ClockSelection = RCC_TIM16CLK_HCLK;
+  PeriphClkInit.Tim17ClockSelection = RCC_TIM17CLK_HCLK;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+	//f = 8Mhz / PSC				PSC = 615
+	//T = (1 / f) * period = 5s		Period = 64934
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 615;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 64934;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
+
+}
+
+/**
+  * @brief TIM17 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM17_Init(void)
+{
+
+  /* USER CODE BEGIN TIM17_Init 0 */
+	//f = 8MHz / PSC					PSC = 367
+	//T = (1 / f) * period = 3s			Period = 65216
+  /* USER CODE END TIM17_Init 0 */
+
+  /* USER CODE BEGIN TIM17_Init 1 */
+
+  /* USER CODE END TIM17_Init 1 */
+  htim17.Instance = TIM17;
+  htim17.Init.Prescaler = 367;
+  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim17.Init.Period = 65216;
+  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim17.Init.RepetitionCounter = 0;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM17_Init 2 */
+
+  /* USER CODE END TIM17_Init 2 */
+
 }
 
 /**
@@ -401,7 +499,19 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	UNUSED(htim);
 
+	if(htim == &htim16){
+		error_flag = false;
+		errors = 0;
+		HAL_TIM_Base_Stop_IT(&htim16);
+	}else if(htim == &htim17){
+		timer_flag = true;
+		wwdg_flag = true;
+		HAL_TIM_Base_Stop_IT(&htim17);
+	}
+}
 
 /* USER CODE END 4 */
 
@@ -412,11 +522,11 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1)
+	{
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -431,7 +541,7 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
+	/* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
