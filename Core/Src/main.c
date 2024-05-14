@@ -34,7 +34,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define LED1_ON 1
+#define LED1_OFF 2
+#define LED2_ON 3
+#define LED2_OFF 4
+#define LED3_ON 5
+#define LED3_OFF 6
+#define LED4_ON 7
+#define LED4_OFF 8
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,12 +78,12 @@ static void MX_TIM17_Init(void);
 /* USER CODE BEGIN 0 */
 uint64_t RxData[3];
 
-uint8_t buf[20] = "Waiting\n\r";
-uint8_t led_a[20] = "Toggle red LED\n\r";
-uint8_t led_b[20] = "Toggle blue LED\n\r";
-uint8_t led_c[20] = "Toggle yellow LED\n\r";
-uint8_t led_d[20] = "Toggle green LED\n\r";
-uint8_t err[20] = "ERROR\n\r\n\r";
+//uint8_t buf[20] = "Waiting\n\r";
+//uint8_t led_a[20] = "Toggle red LED\n\r";
+//uint8_t led_b[20] = "Toggle blue LED\n\r";
+//uint8_t led_c[20] = "Toggle yellow LED\n\r";
+//uint8_t led_d[20] = "Toggle green LED\n\r";
+//uint8_t err[20] = "ERROR\n\r\n\r";
 uint8_t err_max[40] = "ERROR detected over 10 times\n\r\n\r";
 
 uint64_t crc_key = 0xD;
@@ -198,39 +205,44 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		if(wwdg_flag){
-			//MX_WWDG_Init();
+			MX_WWDG_Init();
 			wwdg_flag = false;
 		}
 		if(rx_flag){
 			if(timer_flag){
-			//	HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
+				HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
 			}
-
 			crc_decode();
 			rx_flag = false;
 
-			if(RxData[0] == 1){
-				//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-				RxData[0] = 0;
-				HAL_UART_Transmit(&huart2, led_a, 20, 10);
-			}else if(RxData[0] == 2){
-				//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
-				RxData[0] = 0;
-				HAL_UART_Transmit(&huart2, led_d, 20, 10);
-			}else if(RxData[0] == 3){
-				//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
-				RxData[0] = 0;
-				HAL_UART_Transmit(&huart2, led_c, 20, 10);
-			}else if(RxData[0] == 4){
-				//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-				RxData[0] = 0;
-				HAL_UART_Transmit(&huart2, led_b, 20, 10);
-			}else if(RxData[0] == 0){
-				HAL_UART_Transmit(&huart2, buf, 20, 10);
+			switch(RxData[0]){
+				case LED1_ON:
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+					break;
+				case LED1_OFF:
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+					break;
+				case LED2_ON:
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+					break;
+				case LED2_OFF:
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+					break;
+				case LED3_ON:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+					break;
+				case LED3_OFF:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+					break;
+				case LED4_ON:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+					break;
+				case LED4_OFF:
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+					break;
+				default:
+					//Default case if needed
+					break;
 			}
 		}
 		if(errors > 10){
