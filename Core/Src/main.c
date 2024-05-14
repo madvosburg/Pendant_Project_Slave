@@ -198,42 +198,38 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		if(wwdg_flag){
-			MX_WWDG_Init();
+			//MX_WWDG_Init();
 			wwdg_flag = false;
 		}
 		if(rx_flag){
 			if(timer_flag){
-				HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
+			//	HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
 			}
 
 			crc_decode();
 			rx_flag = false;
 
-			if(RxData[0] == 1){								//red
-				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
-				//	   		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+			if(RxData[0] == 1){
+				//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
 				RxData[0] = 0;
 				HAL_UART_Transmit(&huart2, led_a, 20, 10);
-			}else if(RxData[0] == 2){							//green
-				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);
-				//	   		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+			}else if(RxData[0] == 2){
+				//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_3);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
 				RxData[0] = 0;
 				HAL_UART_Transmit(&huart2, led_d, 20, 10);
-			}else if(RxData[0] == 3){							//yellow
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+			}else if(RxData[0] == 3){
+				//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 				RxData[0] = 0;
 				HAL_UART_Transmit(&huart2, led_c, 20, 10);
-			}else if(RxData[0] == 4){							//blue
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);
-				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+			}else if(RxData[0] == 4){
+				//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_15);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 				RxData[0] = 0;
 				HAL_UART_Transmit(&huart2, led_b, 20, 10);
 			}else if(RxData[0] == 0){
-				//	   		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
-				//	   		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
-				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-				//	   		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 				HAL_UART_Transmit(&huart2, buf, 20, 10);
 			}
 		}
