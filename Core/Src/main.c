@@ -77,21 +77,14 @@ static void MX_TIM17_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint64_t RxData[3];
-
-//uint8_t buf[20] = "Waiting\n\r";
-//uint8_t led_a[20] = "Toggle red LED\n\r";
-//uint8_t led_b[20] = "Toggle blue LED\n\r";
-//uint8_t led_c[20] = "Toggle yellow LED\n\r";
-//uint8_t led_d[20] = "Toggle green LED\n\r";
-//uint8_t err[20] = "ERROR\n\r\n\r";
-uint8_t err_max[40] = "ERROR detected over 10 times\n\r\n\r";
-
 uint64_t crc_key = 0xD;
 bool rx_flag = false;
 uint8_t errors = 0;
 bool timer_flag = false;
 bool wwdg_flag = false;
 bool error_flag = false;
+
+uint8_t err_max[50] = "ERROR detected over 10 times within 5 sec\n\r";
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
@@ -241,12 +234,15 @@ int main(void)
 					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 					break;
 				default:
-					//Default case if needed
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 					break;
 			}
 		}
 		if(errors > 10){
-			HAL_UART_Transmit(&huart2, err_max, 40, 10);
+			HAL_UART_Transmit(&huart2, err_max, 50, 10);
 		}
 	}
   /* USER CODE END 3 */
