@@ -81,10 +81,13 @@ uint64_t crc_key = 0xD;
 bool rx_flag = false;
 uint8_t errors = 0;
 bool timer_flag = false;
-bool wwdg_flag = false;
 bool error_flag = false;
 
 uint8_t err_max[50] = "ERROR detected over 10 times within 5 sec\n\r";
+uint8_t led1_msg[20] = "LED1 ON\n\r";
+uint8_t led2_msg[20] = "LED2 ON\n\r";
+uint8_t led3_msg[20] = "LED3 ON\n\r";
+uint8_t led4_msg[20] = "LED4 ON\n\r";
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
@@ -144,7 +147,7 @@ void crc_decode(){
 	if(remain != 0){
 		errors++;
 		if(!error_flag){
-			HAL_TIM_Base_Start_IT(&htim16);
+			TIM16->CR1 |= TIM_CR1_CEN;
 			error_flag = true;
 		}
 	}
@@ -185,7 +188,8 @@ int main(void)
   MX_TIM16_Init();
   MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
-	HAL_TIM_Base_Start_IT(&htim17);
+	//enable timer counter
+	TIM17->CR1 |= TIM_CR1_CEN;
 
 	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
   /* USER CODE END 2 */
@@ -197,10 +201,16 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		if(wwdg_flag){
+		//if interrupt is called, enable watchdog
+		if((TIM17->SR & TIM_SR_UIF) == 1){
+			//clear update interrupt flag
+			TIM17->SR &= ~TIM_SR_UIF;
+			//disable timer counter
+			TIM17->CR1 &= ~TIM_CR1_CEN;
 			MX_WWDG_Init();
-			wwdg_flag = false;
+			timer_flag = true;
 		}
+
 		if(rx_flag){
 			if(timer_flag){
 				HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
@@ -209,37 +219,51 @@ int main(void)
 			rx_flag = false;
 
 			switch(RxData[0]){
-				case LED1_ON:
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-					break;
-				case LED1_OFF:
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
-					break;
-				case LED2_ON:
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
-					break;
-				case LED2_OFF:
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
-					break;
-				case LED3_ON:
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
-					break;
-				case LED3_OFF:
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-					break;
-				case LED4_ON:
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-					break;
-				case LED4_OFF:
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-					break;
-				default:
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-					break;
+			case LED1_ON:
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
+				HAL_UART_Transmit(&huart2, led1_msg, 20, 10);
+				break;
+			case LED1_OFF:
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+				break;
+			case LED2_ON:
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+				HAL_UART_Transmit(&huart2, led2_msg, 20, 10);
+				break;
+			case LED2_OFF:
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+				break;
+			case LED3_ON:
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+				HAL_UART_Transmit(&huart2, led3_msg, 20, 10);
+				break;
+			case LED3_OFF:
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+				break;
+			case LED4_ON:
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+				HAL_UART_Transmit(&huart2, led4_msg, 20, 10);
+				break;
+			case LED4_OFF:
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+				break;
+			default:
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+				break;
 			}
+		}
+
+		//if interrupt is called, clear errors
+		if((TIM16->SR & TIM_SR_UIF) == 1){
+			//clear update interrupt flag
+			TIM16->SR &= ~TIM_SR_UIF;
+			//disable timer counter
+			TIM16->CR1 &= ~TIM_CR1_CEN;
+			error_flag = false;
+			errors = 0;
 		}
 		if(errors > 10){
 			HAL_UART_Transmit(&huart2, err_max, 50, 10);
@@ -323,7 +347,10 @@ static void MX_TIM16_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM16_Init 2 */
-
+	//generate update event to reload psc
+	TIM16->EGR = TIM_EGR_UG;
+	//clear update interrupt flag
+	TIM16->SR &= ~TIM_SR_UIF;
   /* USER CODE END TIM16_Init 2 */
 
 }
@@ -356,7 +383,10 @@ static void MX_TIM17_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM17_Init 2 */
-
+	//generate update event to reload psc
+	TIM17->EGR = TIM_EGR_UG;
+	//clear update interrupt flag
+	TIM17->SR &= ~TIM_SR_UIF;
   /* USER CODE END TIM17_Init 2 */
 
 }
@@ -446,6 +476,7 @@ static void MX_WWDG_Init(void)
   /* USER CODE BEGIN WWDG_Init 1 */
 	//counter = ((max_time * clk) / (4096 * prescalar)) + 64			= ((.015 * 8M) / (4096 * 4)) + 64 = 72
 	//window = counter - ((min_time * clk) / (4096 * prescalar))		= 72 - ((0.005 * 8M) / (4096 * prescalar)) = 70
+	// 5-15ms
   /* USER CODE END WWDG_Init 1 */
   hwwdg.Instance = WWDG;
   hwwdg.Init.Prescaler = WWDG_PRESCALER_4;
@@ -479,10 +510,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_SET);
 
   /*Configure GPIO pins : PC2 PC3 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
@@ -503,19 +534,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	UNUSED(htim);
-
-	if(htim == &htim16){
-		error_flag = false;
-		errors = 0;
-		HAL_TIM_Base_Stop_IT(&htim16);
-	}else if(htim == &htim17){
-		timer_flag = true;
-		wwdg_flag = true;
-		HAL_TIM_Base_Stop_IT(&htim17);
-	}
-}
 
 /* USER CODE END 4 */
 
