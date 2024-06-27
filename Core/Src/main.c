@@ -45,6 +45,13 @@
 #define RELAY4_ON 7
 #define RELAY4_OFF 8
 
+//flash addresses
+#define RELAY1_ADDRESS 0x0803F800	//page 127
+#define RELAY2_ADDRESS 0x0803F000	//page 126
+#define RELAY3_ADDRESS 0x0803E800	//page 125
+#define RELAY4_ADDRESS 0x0803E000	//page 124
+#define TEST_ADDRESS 0x0803D800		//page 123
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -167,6 +174,35 @@ void crc_decode(){
 	}
 }
 
+/**
+* writes button press counts to flash memory
+*/
+void flash_write(uint32_t address, uint32_t data){
+	HAL_FLASH_Unlock();
+
+	FLASH_EraseInitTypeDef FLASH_EraseInitStruct = {0};
+	FLASH_EraseInitStruct.TypeErase = FLASH_TYPEERASE_PAGES;
+	FLASH_EraseInitStruct.PageAddress = address;
+	FLASH_EraseInitStruct.NbPages = 1;
+	uint32_t PageError;
+	HAL_FLASHEx_Erase(&FLASH_EraseInitStruct, &PageError);
+
+	if(timer_flag){
+		HAL_WWDG_Refresh(&hwwdg);
+	}
+
+	HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address, (uint64_t)data);
+	HAL_FLASH_Lock();
+}
+
+/**
+* reads button press counts from flash memory
+*/
+uint32_t flash_read(uint32_t address){
+	return *(uint32_t*)address;
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -237,6 +273,7 @@ int main(void)
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
 				HAL_UART_Transmit(&huart2, relay1_msg, 20, 10);
 				relay1_count++;
+				flash_write(RELAY1_ADDRESS, relay1_count);
 				break;
 			case RELAY1_OFF:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
@@ -245,6 +282,7 @@ int main(void)
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
 				HAL_UART_Transmit(&huart2, relay2_msg, 20, 10);
 				relay2_count++;
+				flash_write(RELAY2_ADDRESS, relay2_count);
 				break;
 			case RELAY2_OFF:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
@@ -253,6 +291,7 @@ int main(void)
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 				HAL_UART_Transmit(&huart2, relay3_msg, 20, 10);
 				relay3_count++;
+				flash_write(RELAY3_ADDRESS, relay3_count);
 				break;
 			case RELAY3_OFF:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
@@ -261,6 +300,7 @@ int main(void)
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
 				HAL_UART_Transmit(&huart2, relay4_msg, 20, 10);
 				relay4_count++;
+				flash_write(RELAY4_ADDRESS, relay4_count);
 				break;
 			case RELAY4_OFF:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
@@ -501,14 +541,14 @@ static void MX_WWDG_Init(void)
   /* USER CODE END WWDG_Init 0 */
 
   /* USER CODE BEGIN WWDG_Init 1 */
-	//counter = ((max_time * clk) / (4096 * prescalar)) + 64			= ((.015 * 8M) / (4096 * 4)) + 64 = 72
-	//window = counter - ((min_time * clk) / (4096 * prescalar))		= 72 - ((0.005 * 8M) / (4096 * prescalar)) = 70
-	// 5-15ms window for watchdog reset
+	//counter = ((max_time * clk) / (4096 * prescalar)) + 64			= ((.015 * 8M) / (4096 * 4)) + 64 = 79
+	//window = counter - ((min_time * clk) / (4096 * prescalar))		= 72 - ((0.005 * 8M) / (4096 * 4)) = 77
+	// 5-30ms window for watchdog reset
   /* USER CODE END WWDG_Init 1 */
   hwwdg.Instance = WWDG;
   hwwdg.Init.Prescaler = WWDG_PRESCALER_4;
-  hwwdg.Init.Window = 70;
-  hwwdg.Init.Counter = 72;
+  hwwdg.Init.Window = 77;
+  hwwdg.Init.Counter = 79;
   hwwdg.Init.EWIMode = WWDG_EWI_DISABLE;
   if (HAL_WWDG_Init(&hwwdg) != HAL_OK)
   {
