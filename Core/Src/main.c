@@ -34,14 +34,17 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define LED1_ON 1
-#define LED1_OFF 2
-#define LED2_ON 3
-#define LED2_OFF 4
-#define LED3_ON 5
-#define LED3_OFF 6
-#define LED4_ON 7
-#define LED4_OFF 8
+
+//button states
+#define RELAY1_ON 1
+#define RELAY1_OFF 2
+#define RELAY2_ON 3
+#define RELAY2_OFF 4
+#define RELAY3_ON 5
+#define RELAY3_OFF 6
+#define RELAY4_ON 7
+#define RELAY4_OFF 8
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -74,6 +77,7 @@ static void MX_TIM17_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 uint64_t RxData[3];
 uint64_t crc_key = 0xD;
 bool rx_flag = false;
@@ -81,18 +85,24 @@ uint8_t errors = 0;
 bool timer_flag = false;
 bool error_flag = false;
 
-uint8_t err_max[50] = "CRC ERROR detected over 10 times within 5 sec\n\r";
-uint8_t led1_msg[20] = "LED1 ON\n\r";
-uint8_t led2_msg[20] = "LED2 ON\n\r";
-uint8_t led3_msg[20] = "LED3 ON\n\r";
-uint8_t led4_msg[20] = "LED4 ON\n\r";
-uint8_t led1 = 0;
-uint8_t led2 = 0;
-uint8_t led3 = 0;
-uint8_t led4 = 0;
-char count_msg[100];
-uint8_t wwdg_msg[20] = "Watchdog reset\n\r";
+//counts used for testing
+uint32_t relay1_count = 0;
+uint32_t relay2_count = 0;
+uint32_t relay3_count = 0;
+uint32_t relay4_count = 0;
 
+//UART messages to communicate updates
+uint8_t err_max[50] = "CRC ERROR detected over 10 times within 5 sec\n\r";
+uint8_t relay1_msg[20] = "RELAY1 ON\n\r";
+uint8_t relay2_msg[20] = "RELAY2 ON\n\r";
+uint8_t relay3_msg[20] = "RELAY3 ON\n\r";
+uint8_t relay4_msg[20] = "RELAY4 ON\n\r";
+uint8_t wwdg_msg[20] = "Watchdog init\n\r";
+
+
+/**
+ * receives data with crc from transmitter every 10ms
+ */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
@@ -191,9 +201,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM16_Init();
   MX_TIM17_Init();
+
   /* USER CODE BEGIN 2 */
 	LL_TIM_EnableCounter(TIM17);
-
 	HAL_UARTEx_ReceiveToIdle_IT(&huart1, (uint8_t*)RxData, sizeof(RxData));
   /* USER CODE END 2 */
 
@@ -204,6 +214,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+		//watchdog calibration
 		if(LL_TIM_IsActiveFlag_UPDATE(TIM17)){
 			LL_TIM_ClearFlag_UPDATE(TIM17);
 			LL_TIM_DisableCounter(TIM17);
@@ -212,6 +224,7 @@ int main(void)
 			HAL_UART_Transmit(&huart2, wwdg_msg, 20, 10);
 		}
 
+		//relay logic
 		if(rx_flag){
 			if(timer_flag){
 				HAL_WWDG_Refresh(&hwwdg);		//receiving timeout
@@ -220,42 +233,37 @@ int main(void)
 			rx_flag = false;
 
 			switch(RxData[0]){
-			case LED1_ON:
+			case RELAY1_ON:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart2, led1_msg, 20, 10);
-				led1++;
+				HAL_UART_Transmit(&huart2, relay1_msg, 20, 10);
+				relay1_count++;
 				break;
-			case LED1_OFF:
+			case RELAY1_OFF:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
 				break;
-			case LED2_ON:
+			case RELAY2_ON:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart2, led2_msg, 20, 10);
-				led2++;
+				HAL_UART_Transmit(&huart2, relay2_msg, 20, 10);
+				relay2_count++;
 				break;
-			case LED2_OFF:
+			case RELAY2_OFF:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
 				break;
-			case LED3_ON:
+			case RELAY3_ON:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart2, led3_msg, 20, 10);
-				led3++;
+				HAL_UART_Transmit(&huart2, relay3_msg, 20, 10);
+				relay3_count++;
 				break;
-			case LED3_OFF:
+			case RELAY3_OFF:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 				break;
-			case LED4_ON:
+			case RELAY4_ON:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart2, led4_msg, 20, 10);
-				led4++;
+				HAL_UART_Transmit(&huart2, relay4_msg, 20, 10);
+				relay4_count++;
 				break;
-			case LED4_OFF:
+			case RELAY4_OFF:
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-				break;
-			case 100:
-				sprintf(count_msg, "\n\rCounts:     LED1 = %u, LED2 = %u, LED3 = %u, LED4 = %u \n\r", led1, led2, led3, led4);
-				HAL_UART_Transmit(&huart2, (uint8_t*)count_msg, 100, 10);
-				HAL_WWDG_Refresh(&hwwdg);
 				break;
 			default:
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
@@ -266,6 +274,7 @@ int main(void)
 			}
 		}
 
+		//error reset
 		if(LL_TIM_IsActiveFlag_UPDATE(TIM16)){
 			LL_TIM_ClearFlag_UPDATE(TIM16);
 			LL_TIM_DisableCounter(TIM16);
@@ -275,7 +284,8 @@ int main(void)
 		if(errors > 10){
 			HAL_UART_Transmit(&huart2, err_max, 50, 10);
 		}
-}
+	}
+
   /* USER CODE END 3 */
 }
 
@@ -531,12 +541,6 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_SET);
-
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC2 PC3 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
