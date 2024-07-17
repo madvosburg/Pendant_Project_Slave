@@ -1,0 +1,2 @@
+../Core/Src/flash_driver.c:17:19:flash_write	48	static
+../Core/Src/flash_driver.c:40:10:flash_read	16	static

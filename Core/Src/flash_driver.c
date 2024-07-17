@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include "flash_driver.h"
 
+//flash logic used for testing
+
 /**
 * writes button press counts to flash memory
 */
