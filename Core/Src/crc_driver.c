@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include "crc_driver.h"
 
+//crc logic used for data transmission verification
+
 uint64_t crc_key = 0xD;
 
 /**
